@@ -1,0 +1,17 @@
+# Secrets & credentials
+api_keys.txt
+*.env
+.env.*
+
+# Generated vector DB (build artifact, not source)
+medical_db/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db

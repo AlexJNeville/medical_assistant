@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHS Portal | Wide View</title>
+    <style>
+        :root {
+            --nhs-blue: #005eb8;
+            --nhs-light-blue: #e8f1f8;
+            --bg-color: #f0f4f7;
+            --text-dark: #212b32;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: var(--bg-color); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0;
+        }
+
+        /* CHANGED: Adjusted width to 80% and height to 90vh */
+        .chat-container { 
+            width: 80%; 
+            max-width: 1200px; /* Limits it on huge ultrawide monitors */
+            height: 90vh; 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15); 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+
+        .header { 
+            background: var(--nhs-blue); 
+            color: white; 
+            padding: 25px; 
+            text-align: center; 
+            font-weight: 700;
+            font-size: 1.4rem;
+            letter-spacing: 1px;
+        }
+
+        #chat-box { 
+            flex: 1; 
+            padding: 30px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px;
+            scroll-behavior: smooth;
+            background: #ffffff;
+        }
+
+        /* Message Bubbles */
+        .msg { 
+            padding: 15px 20px; 
+            border-radius: 18px; 
+            max-width: 70%; /* Bubbles stay readable on wide screens */
+            line-height: 1.6;
+            font-size: 1rem;
+            word-wrap: break-word;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .user-msg { 
+            background: var(--nhs-blue); 
+            color: white; 
+            align-self: flex-end; 
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-msg { 
+            background: var(--nhs-light-blue); 
+            color: var(--text-dark); 
+            align-self: flex-start; 
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Input Area */
+        .input-area { 
+            display: flex; 
+            padding: 20px 30px; 
+            background: #fdfdfd;
+            border-top: 1px solid #eee;
+            gap: 15px;
+        }
+
+        input { 
+            flex: 1; 
+            padding: 15px 20px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 30px; 
+            outline: none; 
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus { 
+            border-color: var(--nhs-blue); 
+            box-shadow: 0 0 8px rgba(0,94,184,0.2);
+        }
+
+        button { 
+            background: var(--nhs-blue); 
+            color: white; 
+            border: none; 
+            padding: 0 30px; 
+            border-radius: 30px; 
+            cursor: pointer; 
+            font-weight: bold;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #004a99; }
+
+        /* Mobile fallback */
+        @media (max-width: 768px) {
+            .chat-container { width: 95%; height: 95vh; }
+            .msg { max-width: 85%; }
+        }
+
+        /* Typing Animation */
+        .typing { display: flex; gap: 4px; padding: 15px; }
+        .dot { width: 10px; height: 10px; background: #adb5bd; border-radius: 50%; animation: blink 1.4s infinite both; }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            20% { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="header">NHS Clinical Digital Assistant</div>
+        <div id="chat-box">
+            <div class="msg ai-msg">Hello. I am your clinical assistant. How can I help you today?</div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Please describe your symptoms in detail..." autocomplete="off">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // Reset session on load
+        window.onload = async () => {
+            try {
+                await fetch('http://localhost:8000/reset');
+                console.log("Chat session reset.");
+            } catch (err) {
+                console.error("Reset failed:", err);
+            }
+        };
+
+        async function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendMessage(text, 'user-msg');
+            userInput.value = '';
+
+            const thinkingId = addThinkingIndicator();
+            
+            try {
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await response.json();
+                
+                removeThinkingIndicator(thinkingId);
+                appendMessage(data.reply, 'ai-msg');
+            } catch (err) {
+                removeThinkingIndicator(thinkingId);
+                appendMessage("Connection error. Please check if the Python server is running.", 'ai-msg');
+            }
+        }
+
+        function appendMessage(text, className) {
+            const div = document.createElement('div');
+            div.className = `msg ${className}`;
+            div.innerText = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addThinkingIndicator() {
+            const id = 'thinking-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'msg ai-msg typing';
+            div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return id;
+        }
+
+        function removeThinkingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+    </script>
+</body>
+</html>
